@@ -11,9 +11,11 @@
 //! - [`transform`]: select/drop/head/tail/sort/uniq/clean.
 //! - [`stats`]: per-column statistics.
 //! - [`join`]: join two tables on a key column.
+//! - [`frequency`]: value counts for a single column.
 //! - [`json`]: to-json / from-json.
 
 pub mod filter;
+pub mod frequency;
 pub mod io;
 pub mod join;
 pub mod json;
@@ -23,6 +25,7 @@ pub mod transform;
 pub mod value;
 
 pub use filter::{Op, Predicate};
+pub use frequency::frequency;
 pub use io::{read_table, write_table, CsvOpts};
 pub use join::{join, How};
 pub use stats::{compute as compute_stats, ColumnStats};

@@ -5,7 +5,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand};
-use csv_tool::{filter, io, join, json, stats, transform, Table};
+use csv_tool::{filter, frequency, io, join, json, stats, transform, Table};
 use std::fs::File;
 use std::io::{self as stdio, BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
@@ -62,6 +62,12 @@ enum Command {
     /// Per-column statistics (numeric: count/nulls/min/max/mean/sum; text:
     /// count/nulls/distinct).
     Stats,
+    /// Count occurrences of each distinct value in a column (value,count),
+    /// ordered by descending count.
+    Frequency {
+        /// Column to tally (name or 0-based index).
+        col: String,
+    },
     /// Join a second CSV onto the input on a shared key column.
     Join {
         /// Path to the right-hand CSV file to join against.
@@ -165,6 +171,11 @@ fn run() -> Result<()> {
             let s = stats::compute(&table);
             let out = stats::to_table(&s);
             // Stats output always has its own header row regardless of input.
+            write_csv_out(&cli.output, &out, delim, true)
+        }
+        Command::Frequency { col } => {
+            let out = frequency::frequency(&table, &col)?;
+            // Frequency output always has its own header row (value,count).
             write_csv_out(&cli.output, &out, delim, true)
         }
         Command::Join {
