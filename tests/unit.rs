@@ -409,6 +409,7 @@ fn frequency_by_index_and_counts_empty_values() {
     assert_eq!(out.rows[0], vec!["a", "2"]);
     assert_eq!(out.rows[1], vec!["", "1"]);
     assert_eq!(out.rows[2], vec!["b", "1"]);
+    assert_eq!(out.len(), 3);
 }
 
 #[test]

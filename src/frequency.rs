@@ -17,8 +17,9 @@ use std::collections::HashMap;
 pub fn frequency(table: &Table, spec: &str) -> Result<Table> {
     let idx = table.resolve_column(spec)?;
 
-    // Tally counts, remembering first-seen order only as a fallback; the final
-    // sort makes order fully deterministic anyway.
+    // Tally counts. A HashMap has no iteration order, so the sort below — which
+    // breaks count ties by value ascending (a total order over distinct values) —
+    // is what makes the output fully deterministic regardless of input order.
     let mut counts: HashMap<&str, usize> = HashMap::new();
     for row in &table.rows {
         *counts.entry(table.cell(row, idx)).or_insert(0) += 1;

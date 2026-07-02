@@ -302,10 +302,8 @@ fn frequency_via_stdin() {
         .write_stdin(SAMPLE)
         .assert()
         .success()
-        .stdout(predicate::str::starts_with("value,count"))
-        .stdout(predicate::str::contains("NYC,2"))
-        .stdout(predicate::str::contains("LA,1"))
-        .stdout(predicate::str::contains("SF,1"));
+        // Exact full-stdout match: NYC x2 first, then LA/SF (count 1) by value asc.
+        .stdout("value,count\nNYC,2\nLA,1\nSF,1\n");
 }
 
 #[test]
