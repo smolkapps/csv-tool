@@ -184,6 +184,43 @@ fn clean_drops_empty_rows_via_stdin() {
         .stdout(predicate::str::contains("Bob,40"));
 }
 
+#[test]
+fn join_on_city_via_stdin() {
+    // Right-hand table lives in a file; left comes from stdin.
+    let dir = std::env::temp_dir();
+    let right = dir.join("csv_tool_join_right.csv");
+    std::fs::write(&right, "city,country\nNYC,USA\nLA,USA\nSF,USA\n").expect("write right file");
+
+    cmd()
+        .args(["join", right.to_str().unwrap(), "--on", "city"])
+        .write_stdin(SAMPLE)
+        .assert()
+        .success()
+        // Column order preserved; right key column not duplicated.
+        .stdout(predicate::str::starts_with("name,age,city,country"))
+        .stdout(predicate::str::contains("Alice,30,NYC,USA"))
+        .stdout(predicate::str::contains("Bob,40,LA,USA"));
+
+    std::fs::remove_file(&right).ok();
+}
+
+#[test]
+fn join_missing_key_errors() {
+    let dir = std::env::temp_dir();
+    let right = dir.join("csv_tool_join_nokey.csv");
+    std::fs::write(&right, "city,country\nNYC,USA\n").expect("write right file");
+
+    // No --on / --left-on / --right-on given: clear error, non-zero exit.
+    cmd()
+        .args(["join", right.to_str().unwrap()])
+        .write_stdin(SAMPLE)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("key column"));
+
+    std::fs::remove_file(&right).ok();
+}
+
 // --- Error / edge-case handling -----------------------------------------
 
 #[test]
