@@ -4,7 +4,8 @@
 //! select, filter, stats, sort, uniq, and a to-json -> from-json round trip.
 
 use csv_tool::io::{read_table, write_table, CsvOpts};
-use csv_tool::{filter, json, stats, transform};
+use csv_tool::join::How;
+use csv_tool::{filter, join, json, stats, transform};
 
 /// A small, well-known sample used across tests.
 const SAMPLE: &str = "name,age,city\n\
@@ -309,4 +310,78 @@ fn filter_unknown_column_errors() {
     let t = parse_sample();
     let pred = filter::Predicate::parse("nope == 1").expect("parse");
     assert!(filter::apply(&t, &pred).is_err());
+}
+
+fn parse(data: &str) -> csv_tool::Table {
+    read_table(data.as_bytes(), CsvOpts::default()).expect("parse")
+}
+
+#[test]
+fn join_inner_preserves_column_order_and_drops_right_key() {
+    let left = parse_sample(); // name,age,city
+    let right = parse("city,country\nNYC,USA\nLA,USA\nSF,USA\n");
+    let out = join::join(&left, &right, "city", "city", How::Inner).expect("join");
+    // Left columns in order, then right's non-key columns: name,age,city,country.
+    assert_eq!(out.headers, vec!["name", "age", "city", "country"]);
+    assert_eq!(out.len(), 4);
+    // Alice (NYC) picks up USA; key column appears once.
+    let alice = out.rows.iter().find(|r| r[0] == "Alice").unwrap();
+    assert_eq!(alice, &vec!["Alice", "30", "NYC", "USA"]);
+}
+
+#[test]
+fn join_inner_drops_unmatched_rows() {
+    let left = parse_sample();
+    // Only NYC has a match; LA/SF rows on the left are dropped by an inner join.
+    let right = parse("city,country\nNYC,USA\n");
+    let out = join::join(&left, &right, "city", "city", How::Inner).expect("join");
+    let names: Vec<&str> = out.rows.iter().map(|r| r[0].as_str()).collect();
+    assert_eq!(names, vec!["Alice", "Carol"]);
+}
+
+#[test]
+fn join_left_keeps_unmatched_with_empty_right_cells() {
+    let left = parse_sample();
+    let right = parse("city,country\nNYC,USA\n");
+    let out = join::join(&left, &right, "city", "city", How::Left).expect("join");
+    // Every left row survives.
+    assert_eq!(out.len(), 4);
+    let bob = out.rows.iter().find(|r| r[0] == "Bob").unwrap();
+    // Bob's city (LA) has no match -> country is empty.
+    assert_eq!(bob, &vec!["Bob", "40", "LA", ""]);
+}
+
+#[test]
+fn join_duplicate_keys_produce_cartesian_product() {
+    let left = parse("id,name\n1,Alice\n2,Bob\n");
+    // id 1 appears twice on the right: Alice should be emitted twice.
+    let right = parse("id,role\n1,admin\n1,user\n2,guest\n");
+    let out = join::join(&left, &right, "id", "id", How::Inner).expect("join");
+    assert_eq!(out.headers, vec!["id", "name", "role"]);
+    let roles: Vec<&str> = out
+        .rows
+        .iter()
+        .filter(|r| r[1] == "Alice")
+        .map(|r| r[2].as_str())
+        .collect();
+    assert_eq!(roles, vec!["admin", "user"]);
+    assert_eq!(out.len(), 3);
+}
+
+#[test]
+fn join_different_key_column_names() {
+    let left = parse("uid,name\n1,Alice\n2,Bob\n");
+    let right = parse("id,country\n1,USA\n2,UK\n");
+    let out = join::join(&left, &right, "uid", "id", How::Inner).expect("join");
+    // Left key kept (uid), right key (id) dropped.
+    assert_eq!(out.headers, vec!["uid", "name", "country"]);
+    assert_eq!(out.rows[0], vec!["1", "Alice", "USA"]);
+    assert_eq!(out.rows[1], vec!["2", "Bob", "UK"]);
+}
+
+#[test]
+fn join_unknown_key_errors() {
+    let left = parse_sample();
+    let right = parse("city,country\nNYC,USA\n");
+    assert!(join::join(&left, &right, "nope", "city", How::Inner).is_err());
 }

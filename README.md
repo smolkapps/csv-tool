@@ -44,6 +44,7 @@ to `-o/--output <FILE>` or stdout.
 | `filter <expr>` | Keep rows matching `col OP value` where OP is `== != > >= < <= contains`. Numeric compare when both sides are numbers, else string. |
 | `stats` | Per-column summary. Numeric: count, nulls, min, max, mean, sum. Text: count, nulls, distinct. |
 | `sort --by <col> [--desc] [--numeric]` | Sort rows by a column. |
+| `join <right.csv> --on <col> [--left-on <c>] [--right-on <c>] [--left]` | Join a second CSV on a key column. |
 | `uniq [--by <cols>]` | Remove duplicate rows (whole-row, or keyed on a subset). |
 | `to-json` | Emit a JSON array of objects. |
 | `from-json` | Read a JSON array of objects and emit CSV. |
@@ -65,6 +66,9 @@ csv-tool -i data.csv stats
 # Sort numerically, descending
 csv-tool -i data.csv sort --by age --numeric --desc
 
+# Join people.csv with cities.csv on the shared `city` column
+csv-tool -i people.csv join cities.csv --on city
+
 # Semicolon-delimited, no header: filter column index 1
 csv-tool --no-header --delim ';' filter '1 > 30' < data.csv
 
@@ -82,6 +86,12 @@ csv-tool -i data.json from-json > roundtrip.csv
   when ambiguous (a header literally named `0` beats index 0).
 - **Ragged rows** (varying field counts) are tolerated; missing trailing cells
   read as empty.
+- **`join`** matches rows by key value and outputs all of the left table's
+  columns followed by the right table's columns *except* its key (so the key
+  appears once and both tables' column order is preserved). Duplicate keys
+  produce the cartesian product per key, like a SQL join. It's an inner join by
+  default; `--left` keeps unmatched left rows with empty right cells. Use
+  `--left-on`/`--right-on` when the two files name the key column differently.
 - **`--no-header` round-trips**: headerless input produces headerless output.
 - Errors (bad expressions, unknown columns, missing files, malformed JSON) print a
   clear message to stderr and exit non-zero.

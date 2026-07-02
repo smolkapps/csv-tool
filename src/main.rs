@@ -5,7 +5,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use clap::{Parser, Subcommand};
-use csv_tool::{filter, io, json, stats, transform, Table};
+use csv_tool::{filter, io, join, json, stats, transform, Table};
 use std::fs::File;
 use std::io::{self as stdio, BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
@@ -62,6 +62,23 @@ enum Command {
     /// Per-column statistics (numeric: count/nulls/min/max/mean/sum; text:
     /// count/nulls/distinct).
     Stats,
+    /// Join a second CSV onto the input on a shared key column.
+    Join {
+        /// Path to the right-hand CSV file to join against.
+        right: PathBuf,
+        /// Key column present in both files (name or 0-based index).
+        #[arg(long = "on")]
+        on: Option<String>,
+        /// Key column in the left (main input) file; overrides `--on` on the left.
+        #[arg(long = "left-on")]
+        left_on: Option<String>,
+        /// Key column in the right file; overrides `--on` on the right.
+        #[arg(long = "right-on")]
+        right_on: Option<String>,
+        /// Left outer join: keep unmatched left rows, filling right columns empty.
+        #[arg(long = "left", default_value_t = false)]
+        left: bool,
+    },
     /// Sort rows by a column.
     Sort {
         #[arg(long = "by")]
@@ -149,6 +166,29 @@ fn run() -> Result<()> {
             let out = stats::to_table(&s);
             // Stats output always has its own header row regardless of input.
             write_csv_out(&cli.output, &out, delim, true)
+        }
+        Command::Join {
+            right,
+            on,
+            left_on,
+            right_on,
+            left,
+        } => {
+            let right_table = read_csv_in(&Some(right.clone()), opts)
+                .with_context(|| format!("failed to read right CSV {}", right.display()))?;
+            let lon = left_on.as_deref().or(on.as_deref()).ok_or_else(|| {
+                anyhow!("join needs a key column: pass --on <col> (or --left-on/--right-on)")
+            })?;
+            let ron = right_on.as_deref().or(on.as_deref()).ok_or_else(|| {
+                anyhow!("join needs a key column: pass --on <col> (or --left-on/--right-on)")
+            })?;
+            let how = if left {
+                join::How::Left
+            } else {
+                join::How::Inner
+            };
+            let out = join::join(&table, &right_table, lon, ron, how)?;
+            write_csv_out(&cli.output, &out, delim, opts.has_header)
         }
         Command::Sort { by, desc, numeric } => {
             let out = transform::sort(&table, &by, desc, numeric)?;
