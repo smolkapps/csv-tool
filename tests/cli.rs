@@ -293,3 +293,48 @@ fn ragged_rows_do_not_crash() {
     let data = "a,b,c\n1,2\n4,5,6,7\n";
     cmd().arg("head").write_stdin(data).assert().success();
 }
+
+#[test]
+fn frequency_via_stdin() {
+    // city column: NYC appears twice, LA and SF once each.
+    cmd()
+        .args(["frequency", "city"])
+        .write_stdin(SAMPLE)
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("value,count"))
+        .stdout(predicate::str::contains("NYC,2"))
+        .stdout(predicate::str::contains("LA,1"))
+        .stdout(predicate::str::contains("SF,1"));
+}
+
+#[test]
+fn frequency_unknown_column_errors() {
+    cmd()
+        .args(["frequency", "nope"])
+        .write_stdin(SAMPLE)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("no such column"));
+}
+
+#[test]
+fn frequency_no_header_still_emits_value_count_header() {
+    // Pins the reconciled doc contract: `frequency` produces a *derived* table
+    // whose fixed `value,count` header is ALWAYS written, even under
+    // `--no-header` (unlike the row-preserving transforms, which round-trip
+    // headerless input to headerless output). Headerless input `a b a c` on
+    // column 0 => header line present, `a` counted twice.
+    let data = "a\nb\na\nc\n";
+    cmd()
+        .args(["--no-header", "frequency", "0"])
+        .write_stdin(data)
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("value,count"))
+        .stdout(predicate::str::contains("a,2"))
+        .stdout(predicate::str::contains("b,1"))
+        .stdout(predicate::str::contains("c,1"))
+        // The synthesized input column name (`col1`) must NOT leak into output.
+        .stdout(predicate::str::contains("col1").not());
+}

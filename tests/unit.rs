@@ -5,7 +5,7 @@
 
 use csv_tool::io::{read_table, write_table, CsvOpts};
 use csv_tool::join::How;
-use csv_tool::{filter, join, json, stats, transform};
+use csv_tool::{filter, frequency, join, json, stats, transform};
 
 /// A small, well-known sample used across tests.
 const SAMPLE: &str = "name,age,city\n\
@@ -384,4 +384,35 @@ fn join_unknown_key_errors() {
     let left = parse_sample();
     let right = parse("city,country\nNYC,USA\n");
     assert!(join::join(&left, &right, "nope", "city", How::Inner).is_err());
+}
+
+#[test]
+fn frequency_counts_and_orders_by_descending_count() {
+    // city: NYC x2, LA x1, SF x1 -> NYC first, then LA/SF (tie broken by value).
+    let t = parse_sample();
+    let out = frequency::frequency(&t, "city").expect("frequency");
+    assert_eq!(out.headers, vec!["value", "count"]);
+    assert_eq!(out.rows[0], vec!["NYC", "2"]);
+    // Ties (count 1) ordered by value ascending: LA before SF.
+    assert_eq!(out.rows[1], vec!["LA", "1"]);
+    assert_eq!(out.rows[2], vec!["SF", "1"]);
+    assert_eq!(out.len(), 3);
+}
+
+#[test]
+fn frequency_by_index_and_counts_empty_values() {
+    // Empty cells are counted as an empty-string value.
+    let data = "k,v\na,1\n,2\nb,3\na,4\n";
+    let t = parse(data);
+    let out = frequency::frequency(&t, "0").expect("frequency");
+    // a x2, then "" and b (count 1) tie-broken by value: "" < "b".
+    assert_eq!(out.rows[0], vec!["a", "2"]);
+    assert_eq!(out.rows[1], vec!["", "1"]);
+    assert_eq!(out.rows[2], vec!["b", "1"]);
+}
+
+#[test]
+fn frequency_unknown_column_errors() {
+    let t = parse_sample();
+    assert!(frequency::frequency(&t, "nope").is_err());
 }

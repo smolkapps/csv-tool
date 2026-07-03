@@ -43,6 +43,7 @@ to `-o/--output <FILE>` or stdout.
 | `drop <cols>` | Drop these columns. |
 | `filter <expr>` | Keep rows matching `col OP value` where OP is `== != > >= < <= contains`. Numeric compare when both sides are numbers, else string. |
 | `stats` | Per-column summary. Numeric: count, nulls, min, max, mean, sum. Text: count, nulls, distinct. |
+| `frequency <col>` | Count occurrences of each distinct value in a column (`value,count`), ordered by descending count. |
 | `sort --by <col> [--desc] [--numeric]` | Sort rows by a column. |
 | `join <right.csv> --on <col> [--left-on <c>] [--right-on <c>] [--left]` | Join a second CSV on a key column. |
 | `uniq [--by <cols>]` | Remove duplicate rows (whole-row, or keyed on a subset). |
@@ -62,6 +63,9 @@ cat data.csv | csv-tool select name,age | csv-tool filter 'age >= 30'
 
 # Summary statistics
 csv-tool -i data.csv stats
+
+# Value counts: how many rows share each city, most common first
+csv-tool -i data.csv frequency city
 
 # Sort numerically, descending
 csv-tool -i data.csv sort --by age --numeric --desc
@@ -92,7 +96,11 @@ csv-tool -i data.json from-json > roundtrip.csv
   produce the cartesian product per key, like a SQL join. It's an inner join by
   default; `--left` keeps unmatched left rows with empty right cells. Use
   `--left-on`/`--right-on` when the two files name the key column differently.
-- **`--no-header` round-trips**: headerless input produces headerless output.
+- **`--no-header` round-trips** for the row-preserving transforms (`head`, `tail`,
+  `select`, `drop`, `filter`, `sort`, `uniq`, `clean`): headerless input produces
+  headerless output. The commands that emit a *derived* table with fixed columns —
+  `stats` (`column,type,…`), `frequency` (`value,count`), and `headers`
+  (`index,name`) — always write that header row, even under `--no-header`.
 - Errors (bad expressions, unknown columns, missing files, malformed JSON) print a
   clear message to stderr and exit non-zero.
 
