@@ -317,3 +317,24 @@ fn frequency_unknown_column_errors() {
         .failure()
         .stderr(predicate::str::contains("no such column"));
 }
+
+#[test]
+fn frequency_no_header_still_emits_value_count_header() {
+    // Pins the reconciled doc contract: `frequency` produces a *derived* table
+    // whose fixed `value,count` header is ALWAYS written, even under
+    // `--no-header` (unlike the row-preserving transforms, which round-trip
+    // headerless input to headerless output). Headerless input `a b a c` on
+    // column 0 => header line present, `a` counted twice.
+    let data = "a\nb\na\nc\n";
+    cmd()
+        .args(["--no-header", "frequency", "0"])
+        .write_stdin(data)
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("value,count"))
+        .stdout(predicate::str::contains("a,2"))
+        .stdout(predicate::str::contains("b,1"))
+        .stdout(predicate::str::contains("c,1"))
+        // The synthesized input column name (`col1`) must NOT leak into output.
+        .stdout(predicate::str::contains("col1").not());
+}

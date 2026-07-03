@@ -96,7 +96,11 @@ csv-tool -i data.json from-json > roundtrip.csv
   produce the cartesian product per key, like a SQL join. It's an inner join by
   default; `--left` keeps unmatched left rows with empty right cells. Use
   `--left-on`/`--right-on` when the two files name the key column differently.
-- **`--no-header` round-trips**: headerless input produces headerless output.
+- **`--no-header` round-trips** for the row-preserving transforms (`head`, `tail`,
+  `select`, `drop`, `filter`, `sort`, `uniq`, `clean`): headerless input produces
+  headerless output. The commands that emit a *derived* table with fixed columns —
+  `stats` (`column,type,…`), `frequency` (`value,count`), and `headers`
+  (`index,name`) — always write that header row, even under `--no-header`.
 - Errors (bad expressions, unknown columns, missing files, malformed JSON) print a
   clear message to stderr and exit non-zero.
 
